@@ -1,0 +1,33 @@
+{
+    "nguyen_lieu": [
+        {
+            "ma": "NL001",
+            "ten": "Thit ga",
+            "loai": "Thit",
+            "don_vi": "kg",
+            "so_luong": 20,
+            "don_gia": 80000,
+            "han_su_dung": "10/11/2026"
+        },
+        {
+            "ma": "NL002",
+            "ten": "Rau cai",
+            "loai": "Rau cu",
+            "don_vi": "kg",
+            "so_luong": 3,
+            "don_gia": 25000,
+            "han_su_dung": "27/10/2026"
+        },
+        {
+            "ma": "NL003",
+            "ten": "Nuoc mam",
+            "loai": "Gia vi",
+            "don_vi": "chai",
+            "so_luong": 0,
+            "don_gia": 35000,
+            "han_su_dung": "15/12/2026"
+        }
+    ],
+    "phieu_nhap": [],
+    "phieu_xuat": []
+}
