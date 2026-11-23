@@ -90,6 +90,7 @@ class NguyenLieu:
 
     @property
     def han_su_dung(self):
+        """Lấy hạn sử dụng theo định dạng dd/mm/yyyy."""
         return self.__han_su_dung
 
     @han_su_dung.setter
@@ -99,11 +100,12 @@ class NguyenLieu:
             datetime.strptime(gia_tri, "%d/%m/%Y")
         except ValueError:
             raise DuLieuKhongHopLe(
+                "Hạn sử dụng phải đúng định dạng dd/mm/yyyy!"
             ) from None
         self.__han_su_dung = gia_tri
 
     def to_dict(self):
-        #Chuyển đối tượng nguyên liệu thành dictionary để lưu JSON.
+        """Chuyển đối tượng nguyên liệu thành dictionary để lưu JSON."""
         return {
             "ma": self.ma,
             "ten": self.ten,
@@ -116,7 +118,7 @@ class NguyenLieu:
 
     @classmethod
     def from_dict(cls, du_lieu):
-        #Tạo đối tượng NguyenLieu từ một dictionary đọc từ JSON.
+        """Tạo đối tượng NguyenLieu từ một dictionary đọc từ JSON."""
         cac_truong = (
             "ma", "ten", "loai", "don_vi",
             "so_luong", "don_gia", "han_su_dung",
@@ -129,7 +131,6 @@ class NguyenLieu:
         return cls(**{truong: du_lieu[truong] for truong in cac_truong})
 
     def __str__(self):
-        #Trả về thông tin nguyên liệu ở dạng dễ đọc.
         return (
             f"Mã: {self.ma} | Tên: {self.ten} | Loại: {self.loai} | "
             f"Đơn vị: {self.don_vi} | Số lượng: {self.so_luong:g} | "
@@ -167,7 +168,6 @@ class QuanLyNguyenLieu:
         return list(self.danh_sach)
 
     def tim_theo_ma(self, ma):
-        #Tìm một nguyên liệu theo mã; trả về None nếu không có.
         ma = str(ma).strip().lower()
         for nguyen_lieu in self.danh_sach:
             if nguyen_lieu.ma.lower() == ma:
@@ -185,6 +185,7 @@ class QuanLyNguyenLieu:
         ]
 
     def sua_nguyen_lieu(self, ma, **thay_doi):
+        #"Cập nhật các trường được truyền vào của nguyên liệu theo mã.
         nguyen_lieu = self.tim_theo_ma(ma)
         if nguyen_lieu is None:
             raise NguyenLieuKhongTonTai(
@@ -215,6 +216,7 @@ class QuanLyNguyenLieu:
         return nguyen_lieu
 
     def xoa_nguyen_lieu(self, ma):
+        """Xóa nguyên liệu theo mã và trả về đối tượng đã xóa."""
         nguyen_lieu = self.tim_theo_ma(ma)
         if nguyen_lieu is None:
             raise NguyenLieuKhongTonTai(
@@ -224,7 +226,22 @@ class QuanLyNguyenLieu:
         return nguyen_lieu
 
 
-def menu_nguyen_lieu(quan_ly):
+def menu_nguyen_lieu():
+    #Menu quản lý nguyên liệu, kết nối với dữ liệu chung trong data.json.
+    from du_lieu import doc_du_lieu, ghi_du_lieu
+
+    # Nạp dữ liệu đã lưu và chuyển từng dictionary thành đối tượng NguyenLieu.
+    du_lieu = doc_du_lieu()
+    quan_ly = QuanLyNguyenLieu(du_lieu["nguyen_lieu"])
+
+    def luu_nguyen_lieu():
+        #Lưu danh sách nguyên liệu, giữ nguyên phiếu nhập và phiếu xuất.
+        du_lieu_moi = doc_du_lieu()
+        du_lieu_moi["nguyen_lieu"] = [
+            item.to_dict() for item in quan_ly.hien_thi_danh_sach()
+        ]
+        ghi_du_lieu(du_lieu_moi)
+
     while True:
         print("\n===== QUẢN LÝ NGUYÊN LIỆU =====")
         print("1. Thêm nguyên liệu")
@@ -248,6 +265,7 @@ def menu_nguyen_lieu(quan_ly):
                     input("Hạn sử dụng (dd/mm/yyyy): "),
                 )
                 quan_ly.them_nguyen_lieu(nguyen_lieu)
+                luu_nguyen_lieu()
                 print("Thêm nguyên liệu thành công!")
 
             elif lua_chon == "2":
@@ -255,6 +273,7 @@ def menu_nguyen_lieu(quan_ly):
                 if not danh_sach:
                     print("Danh sách nguyên liệu đang trống!")
                 else:
+                    print("\n===== DANH SÁCH NGUYÊN LIỆU =====")
                     for item in danh_sach:
                         print(item)
 
@@ -268,11 +287,12 @@ def menu_nguyen_lieu(quan_ly):
                     print("Không tìm thấy nguyên liệu!")
 
             elif lua_chon == "4":
-                ma = input("Nhập mã nguyên liệu cần sửa: ")
+                ma = input("Nhập mã nguyên liệu cần sửa: ").strip()
                 if quan_ly.tim_theo_ma(ma) is None:
                     raise NguyenLieuKhongTonTai(
                         f"Không tìm thấy nguyên liệu có mã {ma}!"
                     )
+
                 print("Nhập thông tin mới:")
                 quan_ly.sua_nguyen_lieu(
                     ma,
@@ -283,19 +303,22 @@ def menu_nguyen_lieu(quan_ly):
                     don_gia=input("Đơn giá mới: "),
                     han_su_dung=input("Hạn sử dụng mới (dd/mm/yyyy): "),
                 )
+                luu_nguyen_lieu()
                 print("Sửa nguyên liệu thành công!")
 
             elif lua_chon == "5":
-                ma = input("Nhập mã nguyên liệu cần xóa: ")
+                ma = input("Nhập mã nguyên liệu cần xóa: ").strip()
                 nguyen_lieu = quan_ly.tim_theo_ma(ma)
                 if nguyen_lieu is None:
                     raise NguyenLieuKhongTonTai(
                         f"Không tìm thấy nguyên liệu có mã {ma}!"
                     )
+
                 print(nguyen_lieu)
                 xac_nhan = input("Bạn có chắc muốn xóa? (y/n): ").strip().lower()
                 if xac_nhan == "y":
                     quan_ly.xoa_nguyen_lieu(ma)
+                    luu_nguyen_lieu()
                     print("Xóa nguyên liệu thành công!")
                 else:
                     print("Đã hủy xóa.")
@@ -305,12 +328,12 @@ def menu_nguyen_lieu(quan_ly):
                 break
 
             else:
-                print("Lựa chọn không hợp lệ!")
+                print("Lựa chọn không hợp lệ. Vui lòng chọn lại.")
 
-        except (DuLieuKhongHopLe, NguyenLieuDaTonTai, NguyenLieuKhongTonTai) as loi:
+        except (DuLieuKhongHopLe, NguyenLieuDaTonTai, NguyenLieuKhongTonTai,
+                ValueError, OSError) as loi:
             print("Lỗi:", loi)
 
 
 if __name__ == "__main__":
-    quan_ly = QuanLyNguyenLieu()
-    menu_nguyen_lieu(quan_ly)
+    menu_nguyen_lieu()
