@@ -1,218 +1,112 @@
-```python
-from datetime import datetime
-
-# Danh sach phieu nhap
-danh_sach_phieu_nhap = []
-
-
-# 1. Tao phieu nhap
-def tao_phieu_nhap():
-    """Tao mot phieu nhap kho moi."""
-
-    ma_phieu = input("Nhap ma phieu nhap: ").strip().upper()
-
-    if not ma_phieu:
-        print("Ma phieu khong duoc de trong!")
-        return None
-
-    # Kiem tra trung ma phieu
-    for phieu in danh_sach_phieu_nhap:
-        if phieu["ma_phieu"] == ma_phieu:
-            print("Ma phieu nhap da ton tai!")
-            return None
-
-    ngay_nhap = datetime.now().strftime("%d/%m/%Y")
-
-    phieu_nhap = {
-        "ma_phieu": ma_phieu,
-        "ngay_nhap": ngay_nhap,
-        "chi_tiet": [],
-        "tong_tien": 0
-    }
-
-    danh_sach_phieu_nhap.append(phieu_nhap)
-
-    print("Tao phieu nhap thanh cong!")
-    print("Ma phieu:", ma_phieu)
-    print("Ngay nhap:", ngay_nhap)
-
-    return phieu_nhap
+"""nhap_kho.py - TV2: Quản lý nhập kho (phiếu nhập, cập nhật tồn kho, tính tiền)."""
+from datetime import date
+from du_lieu import LoiKho, chuyen_ngay, doc_so, dinh_dang_so, dinh_dang_tien, DINH_DANG_NGAY
+from nguyen_lieu import QuanLyNguyenLieu
 
 
-# 2. Tinh tien nhap
-def tinh_tien_nhap(so_luong, don_gia):
-    """Tinh thanh tien cua mot nguyen lieu."""
+class ChiTietNhap:
+    def __init__(self, ma_nl, so_luong, don_gia):
+        self.ma_nl = ma_nl
+        self.so_luong = so_luong
+        self.don_gia = don_gia
 
-    return so_luong * don_gia
+    @property
+    def thanh_tien(self):
+        return self.so_luong * self.don_gia
 
-
-# 3. Cap nhat ton kho
-def cap_nhat_ton_kho(danh_sach_nguyen_lieu, ma, so_luong):
-    """Cong so luong nhap vao ton kho."""
-
-    for nguyen_lieu in danh_sach_nguyen_lieu:
-        if nguyen_lieu["ma"] == ma:
-            nguyen_lieu["so_luong"] += so_luong
-            return True
-
-    return False
+    def to_dict(self):
+        return {"ma_nl": self.ma_nl, "so_luong": self.so_luong, "don_gia": self.don_gia}
 
 
-# 4. Them chi tiet nhap
-def them_chi_tiet_nhap(phieu_nhap, danh_sach_nguyen_lieu):
-    """Them mot nguyen lieu vao phieu nhap."""
+class PhieuNhap:
+    def __init__(self, ma_phieu, ngay):
+        self.ma_phieu = ma_phieu
+        self.ngay = ngay
+        self.chi_tiet = []
 
-    if phieu_nhap is None:
-        print("Phieu nhap khong hop le!")
-        return
+    @property
+    def tong_tien(self):
+        return sum(ct.thanh_tien for ct in self.chi_tiet)
 
-    ma = input("Nhap ma nguyen lieu: ").strip().upper()
+    def to_dict(self):
+        return {"ma_phieu": self.ma_phieu, "ngay": self.ngay,
+                "chi_tiet": [ct.to_dict() for ct in self.chi_tiet], "tong_tien": self.tong_tien}
 
-    # Tim nguyen lieu trong danh sach
-    nguyen_lieu_tim_thay = None
 
-    for nguyen_lieu in danh_sach_nguyen_lieu:
-        if nguyen_lieu["ma"] == ma:
-            nguyen_lieu_tim_thay = nguyen_lieu
-            break
+class QuanLyNhapKho:
+    def __init__(self, kho):
+        self.kho = kho
+        self.ql_nl = QuanLyNguyenLieu(kho)
 
-    if nguyen_lieu_tim_thay is None:
-        print("Khong tim thay nguyen lieu!")
-        return
+    def tao_phieu_nhap(self, ma_phieu, ngay=""):
+        ma_phieu = str(ma_phieu).strip().upper()
+        if not ma_phieu:
+            raise LoiKho("Mã phiếu không được để trống!")
+        if any(p["ma_phieu"] == ma_phieu for p in self.kho.phieu_nhap):
+            raise LoiKho("Mã phiếu nhập đã tồn tại!")
+        ngay = str(ngay).strip() or date.today().strftime(DINH_DANG_NGAY)
+        chuyen_ngay(ngay)
+        return PhieuNhap(ma_phieu, ngay)
 
-    # Nhap so luong
+    def them_chi_tiet_nhap(self, phieu, ma_nl, so_luong, don_gia):
+        nl = self.ql_nl.lay_nguyen_lieu(ma_nl)            # mã phải tồn tại
+        sl = doc_so(so_luong, "Số lượng")
+        if sl <= 0:
+            raise LoiKho("Số lượng phải lớn hơn 0!")
+        gia = doc_so(don_gia, "Đơn giá")
+        if gia <= 0:
+            raise LoiKho("Đơn giá phải lớn hơn 0!")
+        ct = ChiTietNhap(nl.ma, sl, gia)
+        phieu.chi_tiet.append(ct)
+        return ct
+
+    def cap_nhat_ton_kho(self, phieu):
+        for ct in phieu.chi_tiet:
+            nl = self.ql_nl.lay_nguyen_lieu(ct.ma_nl)
+            nl.so_luong = nl.so_luong + ct.so_luong        # tồn mới = tồn cũ + nhập
+
+    def tinh_tien_nhap(self, phieu):
+        return phieu.tong_tien
+
+    def luu_phieu(self, phieu):
+        self.kho.phieu_nhap.append(phieu.to_dict())
+
+    def hien_thi_phieu_nhap(self, phieu):
+        print(f"\nPhiếu nhập: {phieu.ma_phieu}   Ngày nhập: {phieu.ngay}")
+        for ct in phieu.chi_tiet:
+            nl = self.ql_nl.lay_nguyen_lieu(ct.ma_nl)
+            print(f"  - {nl.ten}: {dinh_dang_so(ct.so_luong)} {nl.don_vi} x {dinh_dang_tien(ct.don_gia)}"
+                  f" = {dinh_dang_tien(ct.thanh_tien)} VNĐ")
+        print(f"Tổng tiền: {dinh_dang_tien(phieu.tong_tien)} VNĐ")
+
+
+def menu_nhap_kho(kho):
+    ql = QuanLyNhapKho(kho)
+    print("\n===== NHẬP KHO =====")
     try:
-        so_luong = float(input("Nhap so luong nhap: "))
-
-        if so_luong <= 0:
-            print("So luong nhap phai lon hon 0!")
-            return
-
-        # Nhap don gia
-        don_gia = float(input("Nhap don gia: "))
-
-        if don_gia <= 0:
-            print("Don gia phai lon hon 0!")
-            return
-
-    except ValueError:
-        print("Vui long nhap so hop le!")
+        phieu = ql.tao_phieu_nhap(input("Mã phiếu: "), input("Ngày nhập (Enter = hôm nay): "))
+    except LoiKho as e:
+        print(f"✗ {e}")
         return
-
-    # Tinh thanh tien
-    thanh_tien = tinh_tien_nhap(so_luong, don_gia)
-
-    # Tao chi tiet phieu nhap
-    chi_tiet = {
-        "ma": ma,
-        "ten": nguyen_lieu["ten"],
-        "so_luong": so_luong,
-        "don_vi": nguyen_lieu["don_vi"],
-        "don_gia": don_gia,
-        "thanh_tien": thanh_tien
-    }
-
-    # Cap nhat ton kho
-    if cap_nhat_ton_kho(
-        danh_sach_nguyen_lieu,
-        ma,
-        so_luong
-    ):
-        phieu_nhap["chi_tiet"].append(chi_tiet)
-        phieu_nhap["tong_tien"] += thanh_tien
-
-        print("\n===== NHAP KHO THANH CONG =====")
-        print("Ten nguyen lieu:", nguyen_lieu_tim_thay["ten"])
-        print("So luong nhap:", so_luong,
-              nguyen_lieu_tim_thay["don_vi"])
-        print("Don gia:", f"{don_gia:,.0f}", "VNĐ")
-        print("Thanh tien:", f"{thanh_tien:,.0f}", "VNĐ")
-        print(
-            "Ton kho hien tai:",
-            nguyen_lieu_tim_thay["so_luong"],
-            nguyen_lieu_tim_thay["don_vi"]
-        )
-    else:
-        print("Khong the cap nhat ton kho!")
-
-
-# 5. Hien thi phieu nhap
-def hien_thi_phieu_nhap():
-    """Hien thi danh sach phieu nhap kho."""
-
-    if not danh_sach_phieu_nhap:
-        print("Chua co phieu nhap nao!")
-        return
-
-    print("\n========== DANH SACH PHIEU NHAP ==========")
-
-    for phieu in danh_sach_phieu_nhap:
-        print("\nMa phieu:", phieu["ma_phieu"])
-        print("Ngay nhap:", phieu["ngay_nhap"])
-
-        if not phieu["chi_tiet"]:
-            print("Phieu nhap chua co nguyen lieu.")
-        else:
-            print("------------------------------------------")
-
-            for ct in phieu["chi_tiet"]:
-                print("Ma nguyen lieu:", ct["ma"])
-                print("Ten nguyen lieu:", ct["ten"])
-                print("So luong:", ct["so_luong"], ct["don_vi"])
-                print("Don gia:", f"{ct['don_gia']:,.0f}", "VNĐ")
-                print("Thanh tien:", f"{ct['thanh_tien']:,.0f}", "VNĐ")
-                print("------------------------------------------")
-
-        print("Tong tien phieu nhap:",
-              f"{phieu['tong_tien']:,.0f}", "VNĐ")
-
-
-# 6. Menu nhap kho
-def menu_nhap_kho(danh_sach_nguyen_lieu):
-    """Menu dieu khien chuc nang nhap kho."""
-
     while True:
-        print("\n========== QUAN LY NHAP KHO ==========")
-        print("1. Tao phieu nhap")
-        print("2. Them nguyen lieu vao phieu nhap")
-        print("3. Hien thi danh sach phieu nhap")
-        print("0. Quay lai")
-
-        chon = input("Nhap lua chon: ").strip()
-
-        if chon == "1":
-            tao_phieu_nhap()
-
-        elif chon == "2":
-            if not danh_sach_phieu_nhap:
-                print("Vui long tao phieu nhap truoc!")
-                continue
-
-            ma_phieu = input("Nhap ma phieu nhap: ").strip().upper()
-
-            phieu_tim_thay = None
-
-            for phieu in danh_sach_phieu_nhap:
-                if phieu["ma_phieu"] == ma_phieu:
-                    phieu_tim_thay = phieu
-                    break
-
-            if phieu_tim_thay is None:
-                print("Khong tim thay phieu nhap!")
-            else:
-                them_chi_tiet_nhap(
-                    phieu_tim_thay,
-                    danh_sach_nguyen_lieu
-                )
-
-        elif chon == "3":
-            hien_thi_phieu_nhap()
-
-        elif chon == "0":
-            print("Quay lai menu chinh!")
+        try:
+            ma = input("Mã nguyên liệu: ")
+            sl = input("Số lượng nhập: ")
+            gia = input("Đơn giá: ")
+            ct = ql.them_chi_tiet_nhap(phieu, ma, sl, gia)
+            print(f"Thành tiền: {dinh_dang_tien(ct.thanh_tien)} VNĐ")
+        except LoiKho as e:
+            print(f"✗ {e}")
+        if input("Thêm nguyên liệu khác vào phiếu? (c/k): ").strip().lower() != "c":
             break
-
-        else:
-            print("Lua chon khong hop le!")
-
-
+    if not phieu.chi_tiet:
+        print("✗ Phiếu không có chi tiết hợp lệ, đã hủy phiếu.")
+        return
+    ql.cap_nhat_ton_kho(phieu)
+    ql.luu_phieu(phieu)
+    kho.luu()
+    print("✓ Nhập kho thành công!")
+    for ct in phieu.chi_tiet:
+        nl = ql.ql_nl.lay_nguyen_lieu(ct.ma_nl)
+        print(f"Tồn kho hiện tại: {nl.ten}: {dinh_dang_so(nl.so_luong)} {nl.don_vi}")
+    ql.hien_thi_phieu_nhap(phieu)
