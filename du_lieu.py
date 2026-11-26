@@ -1,104 +1,86 @@
+"""du_lieu.py - Đọc/ghi dữ liệu JSON, hàm dùng chung, lớp lỗi riêng (cả nhóm phối hợp)."""
 import json
-from pathlib import Path
+import os
+from datetime import datetime
 
-# File du lieu mac dinh cua chuong trinh quan ly kho.
-# Cac module nguyen_lieu.py, nhap_kho.py, xuat_kho.py va thong_ke.py
-# can thong nhat dung cung cau truc du lieu nay.
-
-DUONG_DAN_DU_LIEU = Path(__file__).with_name("data.json")
+DINH_DANG_NGAY = "%d/%m/%Y"
+DUONG_DAN_MAC_DINH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.json")
 
 
-def doc_du_lieu():
-    """Doc du lieu tu data.json; neu chua co thi tao cau truc rong."""
-    if not DUONG_DAN_DU_LIEU.exists():
-        du_lieu = {"nguyen_lieu": [], "phieu_nhap": [], "phieu_xuat": []}
-        ghi_du_lieu(du_lieu)
-        return du_lieu
+class LoiKho(Exception):
+    """Lỗi nghiệp vụ của chương trình quản lý kho (dữ liệu sai, không tìm thấy, không đủ hàng...)."""
 
+
+def chuyen_ngay(chuoi):
+    """Chuyển chuỗi dd/mm/yyyy thành đối tượng date; sai định dạng -> LoiKho."""
     try:
-        with DUONG_DAN_DU_LIEU.open("r", encoding="utf-8") as tep:
-            du_lieu = json.load(tep)
-    except (json.JSONDecodeError, OSError):
-        raise ValueError("Khong doc duoc data.json. Hay kiem tra noi dung file.")
-
-    if not isinstance(du_lieu, dict):
-        raise ValueError("Cau truc data.json khong hop le.")
-
-    du_lieu.setdefault("nguyen_lieu", [])
-    du_lieu.setdefault("phieu_nhap", [])
-    du_lieu.setdefault("phieu_xuat", [])
-    return du_lieu
+        return datetime.strptime(str(chuoi).strip(), DINH_DANG_NGAY).date()
+    except ValueError:
+        raise LoiKho("Ngày không hợp lệ (đúng định dạng dd/mm/yyyy)!")
 
 
-def ghi_du_lieu(du_lieu):
-    """Ghi toan bo du lieu vao data.json."""
-    with DUONG_DAN_DU_LIEU.open("w", encoding="utf-8") as tep:
-        json.dump(du_lieu, tep, ensure_ascii=False, indent=4)
+def doc_so(chuoi, ten_truong):
+    """Chuyển chuỗi thành số thực; không phải số -> LoiKho."""
+    try:
+        return float(str(chuoi).strip().replace(",", "."))
+    except ValueError:
+        raise LoiKho(f"{ten_truong} phải là số!")
 
 
-def lay_danh_sach_nl():
-    """Tra ve danh sach nguyen lieu de cac module cung su dung."""
-    return doc_du_lieu()["nguyen_lieu"]
+def dinh_dang_so(x):
+    x = float(x)
+    return str(int(x)) if x.is_integer() else str(round(x, 2))
 
 
-def them_nguyen_lieu_du_lieu(nguyen_lieu):
-    """Them mot nguyen lieu moi va luu lai."""
-    du_lieu = doc_du_lieu()
-    ma = nguyen_lieu.get("ma")
-
-    if not ma:
-        raise ValueError("Nguyen lieu phai co ma.")
-
-    if any(nl.get("ma") == ma for nl in du_lieu["nguyen_lieu"]):
-        raise ValueError(f"Ma nguyen lieu {ma} da ton tai.")
-
-    du_lieu["nguyen_lieu"].append(nguyen_lieu)
-    ghi_du_lieu(du_lieu)
+def dinh_dang_tien(x):
+    return f"{float(x):,.0f}".replace(",", ".")
 
 
-def cap_nhat_nguyen_lieu(ma, thong_tin_moi):
-    """Cap nhat thong tin nguyen lieu theo ma."""
-    du_lieu = doc_du_lieu()
+class KhoDuLieu:
+    """Giữ toàn bộ dữ liệu trong bộ nhớ và đồng bộ với file data.json."""
 
-    for i, nl in enumerate(du_lieu["nguyen_lieu"]):
-        if nl.get("ma") == ma:
-            du_lieu["nguyen_lieu"][i].update(thong_tin_moi)
-            ghi_du_lieu(du_lieu)
-            return True
+    def __init__(self, duong_dan=DUONG_DAN_MAC_DINH):
+        self.duong_dan = duong_dan
+        self.nguyen_lieu = []   # list[NguyenLieu]
+        self.phieu_nhap = []    # list[dict]
+        self.phieu_xuat = []    # list[dict]
 
-    return False
+    def doc(self):
+        from nguyen_lieu import tao_nguyen_lieu  # import trễ để tránh vòng lặp import
+        try:
+            with open(self.duong_dan, "r", encoding="utf-8") as f:
+                du_lieu = json.load(f)
+        except FileNotFoundError:
+            self.luu()
+            return
+        except json.JSONDecodeError:
+            sao_luu = self.duong_dan + ".loi"
+            os.replace(self.duong_dan, sao_luu)
+            print(f"⚠️ File dữ liệu bị hỏng, đã đổi tên thành {os.path.basename(sao_luu)}. Bắt đầu với kho trống.")
+            self.luu()
+            return
+        except OSError as e:
+            raise LoiKho(f"Không đọc được file dữ liệu: {e}")
 
+        self.nguyen_lieu = []
+        for d in du_lieu.get("nguyen_lieu", []):
+            try:
+                self.nguyen_lieu.append(tao_nguyen_lieu(**d))
+            except (LoiKho, TypeError) as e:
+                print(f"⚠️ Bỏ qua một bản ghi nguyên liệu lỗi: {e}")
+        self.phieu_nhap = du_lieu.get("phieu_nhap", [])
+        self.phieu_xuat = du_lieu.get("phieu_xuat", [])
 
-def xoa_nguyen_lieu_du_lieu(ma):
-    """Xoa nguyen lieu theo ma."""
-    du_lieu = doc_du_lieu()
-    danh_sach = du_lieu["nguyen_lieu"]
-    moi = [nl for nl in danh_sach if nl.get("ma") != ma]
-
-    if len(moi) == len(danh_sach):
-        return False
-
-    du_lieu["nguyen_lieu"] = moi
-    ghi_du_lieu(du_lieu)
-    return True
-
-
-def lay_danh_sach_phieu_nhap():
-    return doc_du_lieu()["phieu_nhap"]
-
-
-def luu_phieu_nhap(phieu):
-    du_lieu = doc_du_lieu()
-    du_lieu["phieu_nhap"].append(phieu)
-    ghi_du_lieu(du_lieu)
-
-
-def lay_danh_sach_phieu_xuat():
-    return doc_du_lieu()["phieu_xuat"]
-
-
-def luu_phieu_xuat(phieu):
-    du_lieu = doc_du_lieu()
-    du_lieu["phieu_xuat"].append(phieu)
-    ghi_du_lieu(du_lieu)
-
+    def luu(self):
+        du_lieu = {
+            "nguyen_lieu": [nl.to_dict() for nl in self.nguyen_lieu],
+            "phieu_nhap": self.phieu_nhap,
+            "phieu_xuat": self.phieu_xuat,
+        }
+        tam = self.duong_dan + ".tmp"
+        try:
+            with open(tam, "w", encoding="utf-8") as f:
+                json.dump(du_lieu, f, ensure_ascii=False, indent=2)
+            os.replace(tam, self.duong_dan)  # ghi an toàn: không mất dữ liệu cũ nếu lỗi giữa chừng
+        except OSError as e:
+            raise LoiKho(f"Không ghi được file dữ liệu: {e}")
