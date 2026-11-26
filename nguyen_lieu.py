@@ -1,13 +1,15 @@
-from datetime import datetime
+"""nguyen_lieu.py - TV1: Quản lý nguyên liệu (thiết kế dữ liệu + các hàm xử lý)."""
+from datetime import date
+from du_lieu import LoiKho, chuyen_ngay, doc_so, dinh_dang_so, dinh_dang_tien, DINH_DANG_NGAY
 
-from ngoai_le import (
-    DuLieuKhongHopLe,
-    NguyenLieuDaTonTai,
-    NguyenLieuKhongTonTai,
-)
 
 class NguyenLieu:
-    def __init__(self, ma, ten, loai, don_vi, so_luong, don_gia, han_su_dung):
+    """Lớp cơ sở: nguyên liệu thường (khô, đóng chai, gia vị...)."""
+    NHOM = "Thường"
+    NGUONG_SAP_HET = 5            # tồn <= ngưỡng này thì cảnh báo sắp hết
+    NGAY_CANH_BAO_HET_HAN = 30    # còn <= số ngày này thì cảnh báo sắp hết hạn
+
+    def __init__(self, ma, ten, loai, don_vi, so_luong, don_gia, han_su_dung=""):
         self.ma = ma
         self.ten = ten
         self.loai = loai
@@ -16,324 +18,204 @@ class NguyenLieu:
         self.don_gia = don_gia
         self.han_su_dung = han_su_dung
 
+    # ----- thuộc tính có kiểm tra dữ liệu (encapsulation) -----
     @property
     def ma(self):
-        return self.__ma
+        return self._ma
 
     @ma.setter
-    def ma(self, gia_tri):
-        gia_tri = str(gia_tri).strip()
-        if not gia_tri:
-            raise DuLieuKhongHopLe("Mã nguyên liệu không được để trống!")
-        self.__ma = gia_tri
+    def ma(self, v):
+        v = str(v).strip().upper()
+        if not v:
+            raise LoiKho("Mã nguyên liệu không được để trống!")
+        self._ma = v
 
     @property
     def ten(self):
-        return self.__ten
+        return self._ten
 
     @ten.setter
-    def ten(self, gia_tri):
-        gia_tri = str(gia_tri).strip()
-        if not gia_tri:
-            raise DuLieuKhongHopLe("Tên nguyên liệu không được để trống!")
-        self.__ten = gia_tri
-
-    @property
-    def loai(self):
-        return self.__loai
-
-    @loai.setter
-    def loai(self, gia_tri):
-        gia_tri = str(gia_tri).strip()
-        if not gia_tri:
-            raise DuLieuKhongHopLe("Loại nguyên liệu không được để trống!")
-        self.__loai = gia_tri
-
-    @property
-    def don_vi(self):
-        return self.__don_vi
-
-    @don_vi.setter
-    def don_vi(self, gia_tri):
-        gia_tri = str(gia_tri).strip()
-        if not gia_tri:
-            raise DuLieuKhongHopLe("Đơn vị tính không được để trống!")
-        self.__don_vi = gia_tri
+    def ten(self, v):
+        v = str(v).strip()
+        if not v:
+            raise LoiKho("Tên nguyên liệu không được để trống!")
+        self._ten = v
 
     @property
     def so_luong(self):
-        return self.__so_luong
+        return self._so_luong
 
     @so_luong.setter
-    def so_luong(self, gia_tri):
-        try:
-            gia_tri = float(gia_tri)
-        except (TypeError, ValueError):
-            raise DuLieuKhongHopLe("Số lượng phải là số!") from None
-        if gia_tri < 0:
-            raise DuLieuKhongHopLe("Số lượng không được âm!")
-        self.__so_luong = gia_tri
+    def so_luong(self, v):
+        v = v if isinstance(v, (int, float)) else doc_so(v, "Số lượng")
+        if v < 0:
+            raise LoiKho("Số lượng không được âm!")
+        self._so_luong = int(v) if float(v).is_integer() else v
 
     @property
     def don_gia(self):
-        return self.__don_gia
+        return self._don_gia
 
     @don_gia.setter
-    def don_gia(self, gia_tri):
-        try:
-            gia_tri = float(gia_tri)
-        except (TypeError, ValueError):
-            raise DuLieuKhongHopLe("Đơn giá phải là số!") from None
-        if gia_tri < 0:
-            raise DuLieuKhongHopLe("Đơn giá không được âm!")
-        self.__don_gia = gia_tri
+    def don_gia(self, v):
+        v = v if isinstance(v, (int, float)) else doc_so(v, "Đơn giá")
+        if v < 0:
+            raise LoiKho("Đơn giá không được âm!")
+        self._don_gia = int(v) if float(v).is_integer() else v
 
     @property
     def han_su_dung(self):
-        """Lấy hạn sử dụng theo định dạng dd/mm/yyyy."""
-        return self.__han_su_dung
+        return self._han_su_dung
 
     @han_su_dung.setter
-    def han_su_dung(self, gia_tri):
-        gia_tri = str(gia_tri).strip()
-        try:
-            datetime.strptime(gia_tri, "%d/%m/%Y")
-        except ValueError:
-            raise DuLieuKhongHopLe(
-                "Hạn sử dụng phải đúng định dạng dd/mm/yyyy!"
-            ) from None
-        self.__han_su_dung = gia_tri
+    def han_su_dung(self, v):
+        v = str(v).strip()
+        if v:
+            chuyen_ngay(v)  # kiểm tra định dạng
+        self._han_su_dung = v
+
+    # ----- nghiệp vụ -----
+    def gia_tri_ton(self):
+        return self.so_luong * self.don_gia
+
+    def sap_het(self):
+        return self.so_luong <= self.NGUONG_SAP_HET
+
+    def so_ngay_con_han(self, hom_nay=None):
+        if not self.han_su_dung:
+            return None
+        hom_nay = hom_nay or date.today()
+        return (chuyen_ngay(self.han_su_dung) - hom_nay).days
+
+    def trang_thai_han(self, hom_nay=None):
+        """Trả về 'khong_han' | 'het_han' | 'sap_het_han' | 'con_han'."""
+        n = self.so_ngay_con_han(hom_nay)
+        if n is None:
+            return "khong_han"
+        if n < 0:
+            return "het_han"
+        if n <= self.NGAY_CANH_BAO_HET_HAN:
+            return "sap_het_han"
+        return "con_han"
 
     def to_dict(self):
-        """Chuyển đối tượng nguyên liệu thành dictionary để lưu JSON."""
-        return {
-            "ma": self.ma,
-            "ten": self.ten,
-            "loai": self.loai,
-            "don_vi": self.don_vi,
-            "so_luong": self.so_luong,
-            "don_gia": self.don_gia,
-            "han_su_dung": self.han_su_dung,
-        }
-
-    @classmethod
-    def from_dict(cls, du_lieu):
-        """Tạo đối tượng NguyenLieu từ một dictionary đọc từ JSON."""
-        cac_truong = (
-            "ma", "ten", "loai", "don_vi",
-            "so_luong", "don_gia", "han_su_dung",
-        )
-        thieu = [truong for truong in cac_truong if truong not in du_lieu]
-        if thieu:
-            raise DuLieuKhongHopLe(
-                "Dữ liệu thiếu trường: " + ", ".join(thieu)
-            )
-        return cls(**{truong: du_lieu[truong] for truong in cac_truong})
+        return {"ma": self.ma, "ten": self.ten, "loai": self.loai, "don_vi": self.don_vi,
+                "so_luong": self.so_luong, "don_gia": self.don_gia, "han_su_dung": self.han_su_dung}
 
     def __str__(self):
-        return (
-            f"Mã: {self.ma} | Tên: {self.ten} | Loại: {self.loai} | "
-            f"Đơn vị: {self.don_vi} | Số lượng: {self.so_luong:g} | "
-            f"Đơn giá: {self.don_gia:,.0f} VNĐ | "
-            f"Hạn sử dụng: {self.han_su_dung}"
-        )
+        return f"{self.ma} - {self.ten} ({dinh_dang_so(self.so_luong)} {self.don_vi})"
+
+
+class NguyenLieuTuoiSong(NguyenLieu):
+    """Lớp con: nguyên liệu tươi sống (thịt, cá, rau...) - hạn ngắn nên cảnh báo sớm theo ngày."""
+    NHOM = "Tươi sống"
+    NGAY_CANH_BAO_HET_HAN = 3
+
+
+LOAI_TUOI_SONG = {"thịt", "cá", "hải sản", "rau", "củ quả", "trứng", "sữa"}
+
+
+def tao_nguyen_lieu(ma, ten, loai, don_vi, so_luong, don_gia, han_su_dung=""):
+    """Factory: chọn lớp phù hợp theo loại nguyên liệu (đa hình)."""
+    lop = NguyenLieuTuoiSong if str(loai).strip().lower() in LOAI_TUOI_SONG else NguyenLieu
+    return lop(ma, ten, loai, don_vi, so_luong, don_gia, han_su_dung)
 
 
 class QuanLyNguyenLieu:
-    def __init__(self, danh_sach=None):
-        self.danh_sach = []
-        for item in danh_sach or []:
-            if isinstance(item, NguyenLieu):
-                self.danh_sach.append(item)
-            elif isinstance(item, dict):
-                self.danh_sach.append(NguyenLieu.from_dict(item))
-            else:
-                raise DuLieuKhongHopLe(
-                    "Danh sách chỉ nhận NguyenLieu hoặc dictionary!"
-                )
-
-    def them_nguyen_lieu(self, nguyen_lieu):
-        if isinstance(nguyen_lieu, dict):
-            nguyen_lieu = NguyenLieu.from_dict(nguyen_lieu)
-        if not isinstance(nguyen_lieu, NguyenLieu):
-            raise DuLieuKhongHopLe("Dữ liệu thêm phải là đối tượng NguyenLieu!")
-        if self.tim_theo_ma(nguyen_lieu.ma) is not None:
-            raise NguyenLieuDaTonTai(
-                f"Mã nguyên liệu {nguyen_lieu.ma} đã tồn tại!"
-            )
-        self.danh_sach.append(nguyen_lieu)
-        return nguyen_lieu
-
-    def hien_thi_danh_sach(self):
-        return list(self.danh_sach)
+    def __init__(self, kho):
+        self.kho = kho
 
     def tim_theo_ma(self, ma):
-        ma = str(ma).strip().lower()
-        for nguyen_lieu in self.danh_sach:
-            if nguyen_lieu.ma.lower() == ma:
-                return nguyen_lieu
+        ma = str(ma).strip().upper()
+        for nl in self.kho.nguyen_lieu:
+            if nl.ma == ma:
+                return nl
         return None
 
+    def lay_nguyen_lieu(self, ma):
+        nl = self.tim_theo_ma(ma)
+        if nl is None:
+            raise LoiKho("Không tìm thấy nguyên liệu!")
+        return nl
+
+    def them_nguyen_lieu(self, ma, ten, loai, don_vi, so_luong, don_gia, han_su_dung=""):
+        nl = tao_nguyen_lieu(ma, ten, loai, don_vi, so_luong, don_gia, han_su_dung)  # kiểm tra dữ liệu ở đây
+        if self.tim_theo_ma(nl.ma):
+            raise LoiKho("Mã nguyên liệu đã tồn tại!")
+        self.kho.nguyen_lieu.append(nl)
+        return nl
+
+    def hien_thi_danh_sach(self, danh_sach=None):
+        ds = self.kho.nguyen_lieu if danh_sach is None else danh_sach
+        if not ds:
+            print("(Không có nguyên liệu nào)")
+            return
+        print(f"{'STT':<4}{'Mã':<7}{'Tên':<16}{'Loại':<11}{'ĐV':<6}{'Số lượng':>9}{'Đơn giá':>11}  {'HSD':<11}")
+        print("-" * 78)
+        for i, nl in enumerate(ds, 1):
+            print(f"{i:<4}{nl.ma:<7}{nl.ten:<16}{nl.loai:<11}{nl.don_vi:<6}"
+                  f"{dinh_dang_so(nl.so_luong):>9}{dinh_dang_tien(nl.don_gia):>11}  {nl.han_su_dung or '-':<11}")
+
     def tim_nguyen_lieu(self, tu_khoa):
-        #Tìm nguyên liệu theo một phần mã hoặc tên, không phân biệt hoa thường.
         tu_khoa = str(tu_khoa).strip().lower()
         if not tu_khoa:
-            return []
-        return [
-            item for item in self.danh_sach
-            if tu_khoa in item.ma.lower() or tu_khoa in item.ten.lower()
-        ]
+            raise LoiKho("Từ khóa tìm kiếm không được để trống!")
+        return [nl for nl in self.kho.nguyen_lieu
+                if tu_khoa in nl.ma.lower() or tu_khoa in nl.ten.lower() or tu_khoa in nl.loai.lower()]
 
     def sua_nguyen_lieu(self, ma, **thay_doi):
-        #"Cập nhật các trường được truyền vào của nguyên liệu theo mã.
-        nguyen_lieu = self.tim_theo_ma(ma)
-        if nguyen_lieu is None:
-            raise NguyenLieuKhongTonTai(
-                f"Không tìm thấy nguyên liệu có mã {ma}!"
-            )
-
-        cac_truong_hop_le = {
-            "ten", "loai", "don_vi", "so_luong", "don_gia", "han_su_dung"
-        }
-        truong_khong_hop_le = set(thay_doi) - cac_truong_hop_le
-        if truong_khong_hop_le:
-            raise DuLieuKhongHopLe(
-                "Trường không được phép sửa: "
-                + ", ".join(sorted(truong_khong_hop_le))
-            )
-
-        # Kiểm tra trên một bản sao trước để tránh cập nhật dở dang nếu dữ liệu sai.
-        du_lieu_moi = nguyen_lieu.to_dict()
-        du_lieu_moi.update(thay_doi)
-        nguyen_lieu_moi = NguyenLieu.from_dict(du_lieu_moi)
-
-        nguyen_lieu.ten = nguyen_lieu_moi.ten
-        nguyen_lieu.loai = nguyen_lieu_moi.loai
-        nguyen_lieu.don_vi = nguyen_lieu_moi.don_vi
-        nguyen_lieu.so_luong = nguyen_lieu_moi.so_luong
-        nguyen_lieu.don_gia = nguyen_lieu_moi.don_gia
-        nguyen_lieu.han_su_dung = nguyen_lieu_moi.han_su_dung
-        return nguyen_lieu
+        cu = self.lay_nguyen_lieu(ma)
+        du_lieu = cu.to_dict()
+        du_lieu.update({k: v for k, v in thay_doi.items() if v not in (None, "")})
+        du_lieu["ma"] = cu.ma  # không cho đổi mã
+        moi = tao_nguyen_lieu(**du_lieu)  # sai dữ liệu -> ném LoiKho, bản cũ giữ nguyên
+        self.kho.nguyen_lieu[self.kho.nguyen_lieu.index(cu)] = moi
+        return moi
 
     def xoa_nguyen_lieu(self, ma):
-        """Xóa nguyên liệu theo mã và trả về đối tượng đã xóa."""
-        nguyen_lieu = self.tim_theo_ma(ma)
-        if nguyen_lieu is None:
-            raise NguyenLieuKhongTonTai(
-                f"Không tìm thấy nguyên liệu có mã {ma}!"
-            )
-        self.danh_sach.remove(nguyen_lieu)
-        return nguyen_lieu
+        self.kho.nguyen_lieu.remove(self.lay_nguyen_lieu(ma))
 
 
-def menu_nguyen_lieu():
-    #Menu quản lý nguyên liệu, kết nối với dữ liệu chung trong data.json.
-    from du_lieu import doc_du_lieu, ghi_du_lieu
-
-    # Nạp dữ liệu đã lưu và chuyển từng dictionary thành đối tượng NguyenLieu.
-    du_lieu = doc_du_lieu()
-    quan_ly = QuanLyNguyenLieu(du_lieu["nguyen_lieu"])
-
-    def luu_nguyen_lieu():
-        #Lưu danh sách nguyên liệu, giữ nguyên phiếu nhập và phiếu xuất.
-        du_lieu_moi = doc_du_lieu()
-        du_lieu_moi["nguyen_lieu"] = [
-            item.to_dict() for item in quan_ly.hien_thi_danh_sach()
-        ]
-        ghi_du_lieu(du_lieu_moi)
-
+def menu_nguyen_lieu(kho):
+    ql = QuanLyNguyenLieu(kho)
     while True:
         print("\n===== QUẢN LÝ NGUYÊN LIỆU =====")
-        print("1. Thêm nguyên liệu")
-        print("2. Hiển thị danh sách")
-        print("3. Tìm kiếm nguyên liệu")
-        print("4. Sửa nguyên liệu")
-        print("5. Xóa nguyên liệu")
-        print("0. Quay lại")
-
-        lua_chon = input("Chọn chức năng: ").strip()
-
+        print("1. Thêm nguyên liệu\n2. Hiển thị nguyên liệu\n3. Tìm kiếm\n"
+              "4. Sửa nguyên liệu\n5. Xóa nguyên liệu\n0. Quay lại")
+        chon = input("Chọn: ").strip()
         try:
-            if lua_chon == "1":
-                nguyen_lieu = NguyenLieu(
-                    input("Mã nguyên liệu: "),
-                    input("Tên nguyên liệu: "),
-                    input("Loại nguyên liệu: "),
-                    input("Đơn vị tính: "),
-                    input("Số lượng: "),
-                    input("Đơn giá: "),
-                    input("Hạn sử dụng (dd/mm/yyyy): "),
-                )
-                quan_ly.them_nguyen_lieu(nguyen_lieu)
-                luu_nguyen_lieu()
-                print("Thêm nguyên liệu thành công!")
-
-            elif lua_chon == "2":
-                danh_sach = quan_ly.hien_thi_danh_sach()
-                if not danh_sach:
-                    print("Danh sách nguyên liệu đang trống!")
-                else:
-                    print("\n===== DANH SÁCH NGUYÊN LIỆU =====")
-                    for item in danh_sach:
-                        print(item)
-
-            elif lua_chon == "3":
-                tu_khoa = input("Nhập mã hoặc tên cần tìm: ")
-                ket_qua = quan_ly.tim_nguyen_lieu(tu_khoa)
-                if ket_qua:
-                    for item in ket_qua:
-                        print(item)
-                else:
-                    print("Không tìm thấy nguyên liệu!")
-
-            elif lua_chon == "4":
-                ma = input("Nhập mã nguyên liệu cần sửa: ").strip()
-                if quan_ly.tim_theo_ma(ma) is None:
-                    raise NguyenLieuKhongTonTai(
-                        f"Không tìm thấy nguyên liệu có mã {ma}!"
-                    )
-
-                print("Nhập thông tin mới:")
-                quan_ly.sua_nguyen_lieu(
-                    ma,
-                    ten=input("Tên mới: "),
-                    loai=input("Loại mới: "),
-                    don_vi=input("Đơn vị mới: "),
-                    so_luong=input("Số lượng mới: "),
-                    don_gia=input("Đơn giá mới: "),
-                    han_su_dung=input("Hạn sử dụng mới (dd/mm/yyyy): "),
-                )
-                luu_nguyen_lieu()
-                print("Sửa nguyên liệu thành công!")
-
-            elif lua_chon == "5":
-                ma = input("Nhập mã nguyên liệu cần xóa: ").strip()
-                nguyen_lieu = quan_ly.tim_theo_ma(ma)
-                if nguyen_lieu is None:
-                    raise NguyenLieuKhongTonTai(
-                        f"Không tìm thấy nguyên liệu có mã {ma}!"
-                    )
-
-                print(nguyen_lieu)
-                xac_nhan = input("Bạn có chắc muốn xóa? (y/n): ").strip().lower()
-                if xac_nhan == "y":
-                    quan_ly.xoa_nguyen_lieu(ma)
-                    luu_nguyen_lieu()
-                    print("Xóa nguyên liệu thành công!")
-                else:
-                    print("Đã hủy xóa.")
-
-            elif lua_chon == "0":
-                print("Đã thoát quản lý nguyên liệu.")
-                break
-
+            if chon == "1":
+                ma = input("Mã: ")
+                ten = input("Tên: ")
+                loai = input("Loại: ")
+                don_vi = input("Đơn vị: ")
+                sl = input("Số lượng: ")
+                gia = input("Đơn giá: ")
+                hsd = input("Hạn sử dụng (dd/mm/yyyy, Enter nếu không có): ")
+                ql.them_nguyen_lieu(ma, ten, loai, don_vi, sl, gia, hsd)
+                kho.luu()
+                print("✓ Thêm nguyên liệu thành công!")
+            elif chon == "2":
+                ql.hien_thi_danh_sach()
+            elif chon == "3":
+                ql.hien_thi_danh_sach(ql.tim_nguyen_lieu(input("Nhập mã/tên cần tìm: ")))
+            elif chon == "4":
+                ma = input("Mã nguyên liệu cần sửa: ")
+                nl = ql.lay_nguyen_lieu(ma)
+                print(f"Đang sửa: {nl}  (Enter để giữ nguyên)")
+                ql.sua_nguyen_lieu(ma, ten=input("Tên mới: "), loai=input("Loại mới: "),
+                                   don_vi=input("Đơn vị mới: "), so_luong=input("Số lượng mới: "),
+                                   don_gia=input("Đơn giá mới: "), han_su_dung=input("Hạn sử dụng mới: "))
+                kho.luu()
+                print("✓ Sửa nguyên liệu thành công!")
+            elif chon == "5":
+                ma = input("Mã nguyên liệu cần xóa: ")
+                ql.xoa_nguyen_lieu(ma)
+                kho.luu()
+                print("✓ Xóa nguyên liệu thành công!")
+            elif chon == "0":
+                return
             else:
-                print("Lựa chọn không hợp lệ. Vui lòng chọn lại.")
-
-        except (DuLieuKhongHopLe, NguyenLieuDaTonTai, NguyenLieuKhongTonTai,
-                ValueError, OSError) as loi:
-            print("Lỗi:", loi)
-
-
-if __name__ == "__main__":
-    menu_nguyen_lieu()
+                print("✗ Lựa chọn không hợp lệ!")
+        except LoiKho as e:
+            print(f"✗ {e}")
